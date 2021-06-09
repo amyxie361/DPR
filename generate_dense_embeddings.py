@@ -39,6 +39,7 @@ setup_logger(logger)
 
 
 def gen_ctx_vectors(
+    file_path: str,
     cfg: DictConfig,
     ctx_rows: List[Tuple[object, BiEncoderPassage]],
     model: nn.Module,
@@ -47,6 +48,7 @@ def gen_ctx_vectors(
 ) -> List[Tuple[object, np.array]]:
     n = len(ctx_rows)
     bsz = cfg.batch_size
+    print(n, bsz)
     total = 0
     results = []
     for j, batch_start in enumerate(range(0, n, bsz)):
@@ -78,21 +80,29 @@ def gen_ctx_vectors(
         total += len(ctx_ids)
 
         # TODO: refactor to avoid 'if'
+        
         if extra_info:
-            results.extend(
-                [
+            #results.extend(
+            #    [
+            #        (ctx_ids[i], out[i].view(-1).numpy(), *extra_info[i])
+            #        for i in range(out.size(0))
+            #    ]
+            #)
+            new_obj = [
                     (ctx_ids[i], out[i].view(-1).numpy(), *extra_info[i])
-                    for i in range(out.size(0))
-                ]
-            )
+                    for i in range(out.size(0))]
         else:
-            results.extend(
-                [(ctx_ids[i], out[i].view(-1).numpy()) for i in range(out.size(0))]
-            )
+            #results.extend(
+            #    [(ctx_ids[i], out[i].view(-1).numpy()) for i in range(out.size(0))]
+            #)
+            new_obj = [(ctx_ids[i], out[i].view(-1).numpy()) for i in range(out.size(0))]
+        with open("{}_{}.pkl".format(file_path, j), mode="wb") as f:
+            pickle.dump(new_obj, f)
 
         if total % 10 == 0:
             logger.info("Encoded passages %d", total)
-    return results
+    #return results
+    return None
 
 
 @hydra.main(config_path="conf", config_name="gen_embs")
@@ -143,30 +153,33 @@ def main(cfg: DictConfig):
 
     ctx_src = hydra.utils.instantiate(cfg.ctx_sources[cfg.ctx_src])
     all_passages_dict = {}
-    ctx_src.load_data_to(all_passages_dict)
+    ctx_src.load_data_to(all_passages_dict, shard_id=cfg.shard_id, num_shards=cfg.num_shards)
     all_passages = [(k, v) for k, v in all_passages_dict.items()]
 
-    shard_size = math.ceil(len(all_passages) / cfg.num_shards)
-    start_idx = cfg.shard_id * shard_size
-    end_idx = start_idx + shard_size
+    #shard_size = math.ceil(len(all_passages) / cfg.num_shards)
+    #start_idx = cfg.shard_id * shard_size
+    #end_idx = start_idx + shard_size
 
-    logger.info(
-        "Producing encodings for passages range: %d to %d (out of total %d)",
-        start_idx,
-        end_idx,
-        len(all_passages),
-    )
-    shard_passages = all_passages[start_idx:end_idx]
+    #logger.info(
+    #    "Producing encodings for passages range: %d to %d (out of total %d)",
+    #    start_idx,
+    #    end_idx,
+    #    len(all_passages),
+    #)
+    #shard_passages = all_passages[start_idx:end_idx]
 
-    data = gen_ctx_vectors(cfg, shard_passages, encoder, tensorizer, True)
+    pathlib.Path(os.path.dirname(cfg.out_file +  "_" + str(cfg.shard_id))).mkdir(parents=True, exist_ok=True)
+    logger.info("Writing results to %s" % cfg.out_file +  "_" + str(cfg.shard_id))
+    gen_ctx_vectors(cfg.out_file +  "_" + str(cfg.shard_id), cfg, all_passages, encoder, tensorizer, True)
 
-    file = cfg.out_file + "_" + str(cfg.shard_id)
-    pathlib.Path(os.path.dirname(file)).mkdir(parents=True, exist_ok=True)
-    logger.info("Writing results to %s" % file)
-    with open(file, mode="wb") as f:
-        pickle.dump(data, f)
+    #file = cfg.out_file + "_" + str(cfg.shard_id)
+    #pathlib.Path(os.path.dirname(file)).mkdir(parents=True, exist_ok=True)
+    #logger.info("Writing results to %s" % file)
+    #with open(file, mode="wb") as f:
+    #    pickle.dump(data, f)
 
-    logger.info("Total passages processed %d. Written to %s", len(data), file)
+    #logger.info("Total passages processed %d. Written to %s", len(data), file)
+    logger.info("Passages processed, Written to %s", cfg.out_file+  "_" + str(cfg.shard_id))
 
 
 if __name__ == "__main__":
