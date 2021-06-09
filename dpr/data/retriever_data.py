@@ -248,13 +248,11 @@ class CsvCtxSrc(RetrieverData):
         import math
         from itertools import islice
         with open(self.file) as ifile:
-            print("===========start count row ", str(time.ctime(int(time.time()))))
             row_count = sum(1 for row in ifile)
             shard_size = math.ceil(row_count / num_shards)
             start_idx = shard_id * shard_size
             end_idx = start_idx + shard_size
         with open(self.file) as ifile:
-            print("===========start skip file ", str(time.ctime(int(time.time()))))
             reader = csv.reader(ifile, delimiter="\t")
             count = 0
             for row in reader:
@@ -262,7 +260,6 @@ class CsvCtxSrc(RetrieverData):
                 if count >= start_idx:
                     break
                 count += 1
-            print("===========start read file ", str(time.ctime(int(time.time()))))
             for row in reader:
                 if row[self.id_col] == "id":
                     continue
@@ -277,8 +274,6 @@ class CsvCtxSrc(RetrieverData):
                 if count >= end_idx:
                     break
                 count += 1
-            print(len(ctxs))
-            print("===========END read file ", str(time.ctime(int(time.time()))))
 
 
 class KiltCsvCtxSrc(CsvCtxSrc):
