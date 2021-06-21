@@ -196,7 +196,7 @@ class ReaderTrainer(object):
         for epoch in range(self.start_epoch, cfg.train.num_train_epochs):
             logger.info("***** Epoch %d *****", epoch)
             global_step = self._train_epoch(
-                scheduler, epoch, eval_step, train_iterator, global_step
+                scheduler, epoch, eval_step, train_iterator, global_step, save_step=cfg.train.save_step
             )
 
         if cfg.local_rank in [-1, 0]:
@@ -297,6 +297,7 @@ class ReaderTrainer(object):
         eval_step: int,
         train_data_iterator: ShardedDataIterator,
         global_step: int,
+        save_step=2000,
     ):
         cfg = self.cfg
         rolling_train_loss = 0.0
@@ -378,6 +379,9 @@ class ReaderTrainer(object):
                     latest_rolling_train_av_loss,
                 )
                 rolling_train_loss = 0.0
+            if global_step % save_step == 0:
+                cp_name = self._save_checkpoint(scheduler, epoch, train_data_iterator.get_iteration())
+                logger.info("Saved checkpoint to %s", cp_name)
 
             if global_step % eval_step == 0:
                 logger.info(
