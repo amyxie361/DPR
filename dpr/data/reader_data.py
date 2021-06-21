@@ -132,7 +132,6 @@ class ExtractiveReaderDataset(torch.utils.data.Dataset):
         self,
         data_files: List,
     ):
-
         serialized_files = [file for file in data_files if file.endswith(".pkl")]
         if serialized_files:
             return serialized_files
